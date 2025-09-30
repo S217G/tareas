@@ -408,13 +408,15 @@ class VentanaLaser:
         self.laser_inicializado = False  # Estado de inicialización
         self.aruco_info = aruco_info  # Información del ArUco generado
         
-        # Si tenemos información del ArUco, configurar automáticamente
+        # Si tenemos información del ArUco, configurar automáticamente la imagen correcta
         is_aruco_image = False
         if self.aruco_info and 'imagen_path' in self.aruco_info:
-            self.image_path = self.aruco_info['imagen_path']
+            # Para obtener fondo negro quemado + patrón blanco, usar imagen NORMAL sin inversión
+            # Esto hará que el láser grabe las áreas BLANCAS (fondo) y deje las áreas NEGRAS (patrón)
+            self.image_path = self.aruco_info['imagen_path_normal'] if 'imagen_path_normal' in self.aruco_info else self.aruco_info['imagen_path']
             nombre_archivo = os.path.basename(self.image_path)
-            self.selected_image.set(f"ArUco generado: {nombre_archivo}")
-            is_aruco_image = True
+            self.selected_image.set(f"ArUco para fondo negro: {nombre_archivo}")
+            is_aruco_image = True  # Activar inversión para quemar el fondo
         
         # Parámetros de grabado (NO MODIFICAR VALORES)
         self.size_mm_x = tk.DoubleVar(value=20.0)
@@ -422,7 +424,7 @@ class VentanaLaser:
         self.ppmm = tk.DoubleVar(value=5.0)
         self.f_engrave = tk.DoubleVar(value=1000.0)
         self.f_travel = tk.DoubleVar(value=1000.0)
-        self.s_max = tk.IntVar(value=480)
+        self.s_max = tk.IntVar(value=400)
         self.gamma_val = tk.DoubleVar(value=0.6)
         self.offset_x = tk.DoubleVar(value=0.0)
         self.offset_y = tk.DoubleVar(value=0.0)
@@ -431,6 +433,10 @@ class VentanaLaser:
         self.invert = tk.BooleanVar(value=is_aruco_image)
         
         self.crear_interfaz_laser()
+        
+        # Verificar imagen de ArUco al inicializar
+        if self.aruco_info:
+            self.verificar_imagen_aruco()
         
     # =========================================================================
     # MÉTODOS DE CREACIÓN DE INTERFAZ - VENTANA LÁSER
@@ -522,8 +528,13 @@ class VentanaLaser:
         # Etiqueta informativa sobre inversión para ArUcos
         info_frame = ttk.Frame(params_frame)
         info_frame.pack(fill=tk.X, pady=2)
-        info_label = ttk.Label(info_frame, text="ℹ️ Para ArUcos: Invertir=ON graba el fondo (recomendado)", 
-                              font=("Arial", 8), foreground="blue")
+        info_label = ttk.Label(info_frame, 
+                              text="✅ CONFIGURACIÓN PARA FONDO NEGRO + PATRÓN BLANCO:\n" +
+                                   "• Se usa la imagen NORMAL del ArUco (fondo blanco + patrón negro)\n" +
+                                   "• Se aplica INVERSIÓN automática (fondo negro + patrón blanco)\n" +
+                                   "• El láser graba las áreas NEGRAS → graba el fondo, deja el patrón\n" +
+                                   "• RESULTADO: Fondo negro quemado + Patrón blanco sin quemar", 
+                              font=("Arial", 7), foreground="blue", justify=tk.LEFT)
         info_label.pack(side=tk.LEFT)
         
         # Log del láser
@@ -609,14 +620,18 @@ class VentanaLaser:
             self.log_laser(f"Imagen seleccionada: {nombre}")
 
     def usar_aruco_generado(self):
-        """Usa automáticamente la imagen del ArUco generado"""
+        """Usa automáticamente la imagen del ArUco generado para fondo negro"""
         if self.aruco_info and 'imagen_path' in self.aruco_info:
-            self.image_path = self.aruco_info['imagen_path']
+            # Para fondo negro + patrón blanco: usar imagen NORMAL con INVERSIÓN
+            # Imagen normal: fondo blanco + patrón negro
+            # Con inversión: fondo negro + patrón blanco
+            # Láser graba áreas negras → graba el fondo, deja el patrón
+            self.image_path = self.aruco_info['imagen_path_normal'] if 'imagen_path_normal' in self.aruco_info else self.aruco_info['imagen_path']
             nombre_archivo = os.path.basename(self.image_path)
-            self.selected_image.set(f"ArUco generado: {nombre_archivo}")
-            # Activar inversión automáticamente para imágenes ArUco
-            self.invert.set(True)
-            self.log_laser(f"🎯 ArUco generado seleccionado: {nombre_archivo} (Inversión activada)")
+            self.selected_image.set(f"ArUco fondo negro: {nombre_archivo}")
+            self.invert.set(True)  # ACTIVAR inversión para quemar el fondo
+            self.log_laser(f"🎯 Usando imagen normal del ArUco: {nombre_archivo}")
+            self.log_laser("✅ Inversión ACTIVADA - Resultado: fondo negro + patrón blanco")
         else:
             messagebox.showwarning("Advertencia", "No hay un ArUco generado disponible.\nGenera un ArUco primero desde la ventana principal.")
             
@@ -624,13 +639,13 @@ class VentanaLaser:
         """Inicializa el láser después de seleccionar imagen"""
         if not self.image_path:
             if self.aruco_info and 'imagen_path' in self.aruco_info:
-                # Usar automáticamente la imagen del ArUco generado
-                self.image_path = self.aruco_info['imagen_path']
+                # Para fondo negro + patrón blanco: usar imagen NORMAL con INVERSIÓN
+                self.image_path = self.aruco_info['imagen_path_normal'] if 'imagen_path_normal' in self.aruco_info else self.aruco_info['imagen_path']
                 nombre_archivo = os.path.basename(self.image_path)
-                self.selected_image.set(f"ArUco generado: {nombre_archivo}")
-                # Activar inversión automáticamente para imágenes ArUco
-                self.invert.set(True)
-                self.log_laser(f"🎯 Usando imagen del ArUco generado: {nombre_archivo} (Inversión activada)")
+                self.selected_image.set(f"ArUco fondo negro: {nombre_archivo}")
+                self.invert.set(True)  # ACTIVAR inversión
+                self.log_laser(f"🎯 Usando imagen normal del ArUco: {nombre_archivo}")
+                self.log_laser("✅ Inversión ACTIVADA - Resultado: fondo negro quemado + patrón blanco")
             else:
                 messagebox.showwarning("Advertencia", "Selecciona una imagen primero o genera un ArUco")
                 return
@@ -675,13 +690,13 @@ class VentanaLaser:
         """Genera G-code para la imagen seleccionada"""
         if not self.image_path:
             if self.aruco_info and 'imagen_path' in self.aruco_info:
-                # Usar automáticamente la imagen del ArUco generado
-                self.image_path = self.aruco_info['imagen_path']
+                # Para fondo negro + patrón blanco: usar imagen NORMAL con INVERSIÓN
+                self.image_path = self.aruco_info['imagen_path_normal'] if 'imagen_path_normal' in self.aruco_info else self.aruco_info['imagen_path']
                 nombre_archivo = os.path.basename(self.image_path)
-                self.selected_image.set(f"ArUco generado: {nombre_archivo}")
-                # Activar inversión automáticamente para imágenes ArUco
-                self.invert.set(True)
-                self.log_laser(f"🎯 Usando imagen del ArUco generado: {nombre_archivo} (Inversión activada)")
+                self.selected_image.set(f"ArUco fondo negro: {nombre_archivo}")
+                self.invert.set(True)  # ACTIVAR inversión
+                self.log_laser(f"🎯 Usando imagen normal del ArUco para G-code: {nombre_archivo}")
+                self.log_laser("✅ Inversión ACTIVADA - Resultado: fondo negro + patrón blanco")
             else:
                 messagebox.showwarning("Advertencia", "Selecciona una imagen primero o genera un ArUco")
                 return
@@ -723,13 +738,13 @@ class VentanaLaser:
         """Inicia el proceso de grabado después de la inicialización"""
         if not self.image_path:
             if self.aruco_info and 'imagen_path' in self.aruco_info:
-                # Usar automáticamente la imagen del ArUco generado
-                self.image_path = self.aruco_info['imagen_path']
+                # Para fondo negro + patrón blanco: usar imagen NORMAL con INVERSIÓN
+                self.image_path = self.aruco_info['imagen_path_normal'] if 'imagen_path_normal' in self.aruco_info else self.aruco_info['imagen_path']
                 nombre_archivo = os.path.basename(self.image_path)
-                self.selected_image.set(f"ArUco generado: {nombre_archivo}")
-                # Activar inversión automáticamente para imágenes ArUco
-                self.invert.set(True)
-                self.log_laser(f"🎯 Usando imagen del ArUco generado para grabado: {nombre_archivo} (Inversión activada)")
+                self.selected_image.set(f"ArUco fondo negro: {nombre_archivo}")
+                self.invert.set(True)  # ACTIVAR inversión
+                self.log_laser(f"🎯 Usando imagen normal del ArUco para grabado: {nombre_archivo}")
+                self.log_laser("✅ Inversión ACTIVADA - Resultado: fondo negro + patrón blanco")
             else:
                 messagebox.showwarning("Advertencia", "Selecciona una imagen primero o genera un ArUco")
                 return
@@ -1047,7 +1062,7 @@ class VentanaRobot:
     
     def escuchar_cmg_chg(self):
         """Escucha por mensajes CMG/CHG en hilo separado"""
-        while self.escuchando_automatico and self.ser_robot and self.ser_robot.is_open:
+        while self.escuchando_automatica and self.ser_robot and self.ser_robot.is_open:
             try:
                 recibir = self.ser_robot.read_all()
                 if recibir:
@@ -1244,7 +1259,7 @@ class VentanaScorbotOriginal:
     def click_desconectar(self):
         if self.SerialPort1.is_open:
             try:
-                self.send_scorbot_command("COFF", "Apagando servomotores antes de desconectar")
+                self.send_scorbot_command("COFF", "Apagar servomotores antes de desconectar")
                 self.SerialPort1.close()
                 self.TextoEstado.config(state="normal")
                 self.TextoEstado.delete("1.0", tk.END)
@@ -1450,7 +1465,7 @@ class VentanaComunicacionSerial:
             messagebox.showinfo(message="Puerto Desconectado")
             self.TextoEstado.config(state="disabled")
         else:
-            messagebox.showinfo("Información", "El puerto ya está desconectado.")
+            messagebox.showinfo("Información", "El puerto ya está desconectado")
 
     def click_enviar(self):
         if self.SerialPort1.is_open:
@@ -1506,10 +1521,10 @@ class Aplicacion:
         # Ventana del láser
         self.ventana_laser = None
         
-        # Ventana del robot
+        # Ventana del robot (NO se abre automáticamente - solo cuando se presiona el botón)
         self.ventana_robot = None
         
-        # Ventanas originales del robot
+        # Ventanas originales del robot (NO se abren automáticamente - solo cuando se presiona el botón)
         self.ventana_scorbot_original = None
         self.ventana_comunicacion_serial = None
         
@@ -1526,10 +1541,10 @@ class Aplicacion:
         self.forzar_aruco_al_inicio()
 
     def deshabilitar_controles(self):
-        """Deshabilita todos los controles excepto 'Crear Aruco'"""
+        """Deshabilita todos los controles excepto 'Crear ArUco'"""
         for child in self.ventana.winfo_children():
             self._set_estado_recursivo(child, tk.DISABLED)
-        # Habilita solo el botón 'Crear Aruco'
+        # Habilita solo el botón 'Crear ArUco'
         if hasattr(self, 'btn_crear_aruco'):
             self.btn_crear_aruco.config(state=tk.NORMAL)
 
@@ -1746,11 +1761,12 @@ class Aplicacion:
             self.ventana_laser.ventana.focus_force()
 
     def abrir_ventana_robot(self):
-        """Abre la ventana de control del robot"""
+        """Abre la ventana de control del robot SOLO cuando se presiona el botón"""
         if self.ventana_robot is None or not self.ventana_robot.ventana.winfo_exists():
             try:
+                # Solo crear la ventana cuando el usuario presiona el botón
                 self.ventana_robot = VentanaRobot(self.ventana)
-                print("Ventana del robot abierta")
+                print("Ventana del robot abierta por solicitud del usuario")
             except Exception as e:
                 messagebox.showerror("Error", f"No se pudo abrir la ventana del robot:\n{e}")
         else:
@@ -1759,12 +1775,13 @@ class Aplicacion:
             self.ventana_robot.ventana.focus_force()
 
     def abrir_ventanas_robot_originales(self):
-        """Abre las ventanas originales del robot (Scorbot y Comunicación Serial)"""
+        """Abre las ventanas originales del robot SOLO cuando se presiona el botón"""
         try:
+            # Solo crear las ventanas cuando el usuario presiona el botón
             # Abrir ventana de control Scorbot original
             if self.ventana_scorbot_original is None or not self.ventana_scorbot_original.ventana.winfo_exists():
                 self.ventana_scorbot_original = VentanaScorbotOriginal(self.ventana)
-                print("Ventana Scorbot original abierta")
+                print("Ventana Scorbot original abierta por solicitud del usuario")
             else:
                 self.ventana_scorbot_original.ventana.lift()
                 self.ventana_scorbot_original.ventana.focus_force()
@@ -1772,7 +1789,7 @@ class Aplicacion:
             # Abrir ventana de comunicación serial original
             if self.ventana_comunicacion_serial is None or not self.ventana_comunicacion_serial.ventana.winfo_exists():
                 self.ventana_comunicacion_serial = VentanaComunicacionSerial(self.ventana)
-                print("Ventana comunicación serial original abierta")
+                print("Ventana comunicación serial original abierta por solicitud del usuario")
             else:
                 self.ventana_comunicacion_serial.ventana.lift()
                 self.ventana_comunicacion_serial.ventana.focus_force()

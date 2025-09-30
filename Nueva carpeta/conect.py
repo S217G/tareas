@@ -109,15 +109,21 @@ def click_conectar():
         SerialPort1.bytesize = 8
         SerialPort1.parity = "N"
         SerialPort1.stopbits = serial.STOPBITS_ONE
-        SerialPort1.port = comboBox1.get()
+        
+        if comboBox1 is not None:
+            SerialPort1.port = comboBox1.get()
+        else:
+            SerialPort1.port = "COM1"  # Puerto por defecto cuando no hay interfaz
+            
         try:
             SerialPort1.open()
-            TextoEstado.config(state="normal")
-            TextoEstado.delete("1.0", tk.END)
-            TextoEstado.insert("1.0", "CONECTADO")
-            TextoEstado.configure(background="lime")
+            safe_widget_config(TextoEstado, state="normal")
+            if TextoEstado is not None:
+                TextoEstado.delete("1.0", tk.END)
+                TextoEstado.insert("1.0", "CONECTADO")
+                TextoEstado.configure(background="lime")
             messagebox.showinfo(message="Puerto Conectado")
-            TextoEstado.config(state="disabled")
+            safe_widget_config(TextoEstado, state="disabled")
             # Iniciar el proceso de escucha automática en un hilo separado
             Thread(target=escuchar_automatica, daemon=True).start()
         except Exception as e:
@@ -128,25 +134,30 @@ def click_conectar():
 def click_desconectar():
     if SerialPort1.is_open:
         SerialPort1.close()
-        TextoEstado.config(state="normal")
-        TextoEstado.delete("1.0", tk.END)
-        TextoEstado.insert("1.0", "DESCONECTADO")
-        TextoEstado.configure(background="red")
+        safe_widget_config(TextoEstado, state="normal")
+        if TextoEstado is not None:
+            TextoEstado.delete("1.0", tk.END)
+            TextoEstado.insert("1.0", "DESCONECTADO")
+            TextoEstado.configure(background="red")
         messagebox.showinfo(message="Puerto Desconectado")
-        TextoEstado.config(state="disabled")
+        safe_widget_config(TextoEstado, state="disabled")
     else:
         messagebox.showinfo("Información", "El puerto ya está desconectado.")
 
 def click_enviar():
     if SerialPort1.is_open:
-        data_to_send = TextEnviar.get("1.0", tk.END).strip()  # Eliminar saltos de línea extra
+        if TextEnviar is not None:
+            data_to_send = TextEnviar.get("1.0", tk.END).strip()
+        else:
+            data_to_send = ""
+            
         if data_to_send:
             SerialPort1.write(data_to_send.encode() + b"\r")
             time.sleep(2)
             aux = SerialPort1.read_all()
             if b"Done." in aux:
                 time.sleep(42)
-                TextRecibidos.insert(tk.END, b"OK\n")
+                safe_text_insert(TextRecibidos, tk.END, b"OK\n")
             messagebox.showinfo(message="Enviado Correctamente", title="Resultado")
         else:
             messagebox.showwarning("Advertencia", "El campo de envío está vacío.")
@@ -154,6 +165,9 @@ def click_enviar():
         messagebox.showerror("Error", "Debe conectar el puerto primero")
 
 def update_com_ports():
+    if comboBox1 is None:
+        return
+        
     ports = [port.device for port in serial.tools.list_ports.comports()]
     comboBox1['values'] = ports
     if ports:
@@ -161,37 +175,54 @@ def update_com_ports():
     else:
         comboBox1.set("No ports found")
 
-# ==== INTERFAZ ==== 
-root = tk.Tk()
-root.title("Comunicacion Serial")
-root.geometry("600x400")  #
+# Variables de la interfaz gráfica (se inicializan solo cuando se ejecuta directamente)
+TextoEstado = None
+TextEnviar = None
+TextRecibidos = None
+comboBox1 = None
 
+def safe_text_insert(widget, position, text):
+    """Inserta texto en un widget de forma segura"""
+    if widget is not None:
+        widget.insert(position, text)
 
-# Etiqueta de estado (DESCONECTADO)
-TextoEstado = tk.Text(root, height=1, width=15, state="disabled", bg="red", font=("Arial", 10, "bold"))
-TextoEstado.insert("1.0", "DESCONECTADO")
-TextoEstado.place(x=240, y=10)  # Reposicionado
+def safe_widget_config(widget, **kwargs):
+    """Configura un widget de forma segura"""
+    if widget is not None:
+        widget.config(**kwargs)
 
-# Botones Conectar y Desconectar
-ttk.Button(root, text="Conectar", command=click_conectar).place(x=10, y=40, width=100)
-ttk.Button(root, text="Desconectar", command=click_desconectar).place(x=390, y=40, width=100)
+# ==== INTERFAZ ====
+# Solo ejecutar la interfaz si este archivo se ejecuta directamente
+if __name__ == "__main__":
+    root = tk.Tk()
+    root.title("Comunicacion Serial")
+    root.geometry("600x400")  #
 
-# ComboBox de puertos
-comboBox1 = ttk.Combobox(root, state="readonly")
-comboBox1.place(x=120, y=40, width=260)  # Reposicionado y ajustado el ancho
-update_com_ports()  # Llenar el combobox al inicio
+    # Etiqueta de estado (DESCONECTADO)
+    TextoEstado = tk.Text(root, height=1, width=15, state="disabled", bg="red", font=("Arial", 10, "bold"))
+    TextoEstado.insert("1.0", "DESCONECTADO")
+    TextoEstado.place(x=240, y=10)  # Reposicionado
 
-# Etiqueta "Datos Enviados" y campo de envío
-tk.Label(root, text="Datos Enviados").place(x=200, y=80)
-TextEnviar = tk.Text(root, height=3, width=30)
-TextEnviar.place(x=150, y=100)
+    # Botones Conectar y Desconectar
+    ttk.Button(root, text="Conectar", command=click_conectar).place(x=10, y=40, width=100)
+    ttk.Button(root, text="Desconectar", command=click_desconectar).place(x=390, y=40, width=100)
 
-# Etiqueta "Datos Recibidos" y campo de recepción
-tk.Label(root, text="Datos Recibidos").place(x=430, y=80)
-TextRecibidos = tk.Text(root, height=10, width=30)
-TextRecibidos.place(x=350, y=100)
+    # ComboBox de puertos
+    comboBox1 = ttk.Combobox(root, state="readonly")
+    comboBox1.place(x=120, y=40, width=260)  # Reposicionado y ajustado el ancho
+    update_com_ports()  # Llenar el combobox al inicio
 
-# Botón Enviar
-ttk.Button(root, text="Enviar", command=click_enviar).place(x=220, y=160, width=80)
+    # Etiqueta "Datos Enviados" y campo de envío
+    tk.Label(root, text="Datos Enviados").place(x=200, y=80)
+    TextEnviar = tk.Text(root, height=3, width=30)
+    TextEnviar.place(x=150, y=100)
 
-root.mainloop()
+    # Etiqueta "Datos Recibidos" y campo de recepción
+    tk.Label(root, text="Datos Recibidos").place(x=430, y=80)
+    TextRecibidos = tk.Text(root, height=10, width=30)
+    TextRecibidos.place(x=350, y=100)
+
+    # Botón Enviar
+    ttk.Button(root, text="Enviar", command=click_enviar).place(x=220, y=160, width=80)
+
+    root.mainloop()
